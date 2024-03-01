@@ -72,14 +72,15 @@ export function fetchEventSource(input: RequestInfo, {
         }
 
         let curRequestController: AbortController;
-        function abortCurrentRequest() {
+        function abortCurrentRequest(reason?: string) {
           if (curRequestController) {
-            curRequestController.abort();
+            curRequestController.abort(reason);
           }
         }
 
         function onVisibilityChange() {
-            abortCurrentRequest(); // close existing request on every visibility change
+            // close existing request on every visibility change
+            abortCurrentRequest('visibility');
             if (!document.hidden) {
                 create(); // page is now visible again, recreate request.
             }
@@ -91,16 +92,15 @@ export function fetchEventSource(input: RequestInfo, {
 
         let retryInterval = DefaultRetryInterval;
         let retryTimer = 0;
-        function dispose() {
+        function dispose(reason?: string) {
             document.removeEventListener('visibilitychange', onVisibilityChange);
             window.clearTimeout(retryTimer);
-            abortCurrentRequest();
+            abortCurrentRequest(reason);
         }
-
 
         // if the incoming signal aborts, dispose resources and resolve:
         inputSignal?.addEventListener('abort', () => {
-            dispose();
+            dispose(inputSignal.reason);
             resolve(); // don't waste time constructing/logging errors
         });
 
@@ -108,7 +108,7 @@ export function fetchEventSource(input: RequestInfo, {
         const onopen = inputOnOpen ?? defaultOnOpen;
         async function create() {
             // https://github.com/Azure/fetch-event-source/pull/7/files
-            abortCurrentRequest();
+            abortCurrentRequest('create');
             curRequestController = new AbortController();
             try {
                 const response = await fetch(input, {
@@ -132,7 +132,7 @@ export function fetchEventSource(input: RequestInfo, {
                 }, onmessage)));
 
                 onclose?.();
-                dispose();
+                dispose('postclose');
                 resolve();
             } catch (err) {
                 if (!curRequestController.signal.aborted) {
@@ -141,11 +141,11 @@ export function fetchEventSource(input: RequestInfo, {
                         // check if we need to retry:
                         const interval: any = onerror?.(err) ?? retryInterval;
                         window.clearTimeout(retryTimer);
-                        abortCurrentRequest();
+                        abortCurrentRequest('recreate');
                         retryTimer = window.setTimeout(create, interval);
                     } catch (innerErr) {
                         // we should not retry anymore:
-                        dispose();
+                        dispose('catch');
                         reject(innerErr);
                     }
                 }

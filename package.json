@@ -1,6 +1,6 @@
 {
   "name": "@journalytic/fetch-event-source",
-  "version": "2.0.1-journalytic1",
+  "version": "2.0.1-journalytic2",
   "description": "A better API for making Event Source requests, with all the features of fetch()",
   "repository": "https://github.com/journalytic/fetch-event-source.git",
   "publishConfig": {
